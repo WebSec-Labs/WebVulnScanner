@@ -218,3 +218,32 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Node.js and Frontend dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Frontend build outputs
+dist/
+dist-ssr/
+*.local
+
+# Frontend testing & coverage reports
+coverage/
+*.lcov
+
+# Vite & bundler caches
+.vite/
+
+# Local environment files (prevent committing actual credentials)
+.env*.local
+!.env.example
+!*.env.example
+
+# OS / Editor temporary files
+.DS_Store
+Thumbs.db
