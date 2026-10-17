@@ -88,16 +88,16 @@ class ScannerEngine:
         )
 
         semaphore = asyncio.Semaphore(config.max_concurrency)
+        context = ScanContext(
+            target_url=normalized_target,
+            scope=scope,
+            client=client,
+            extra=extra_context or {},
+        )
 
         async def _execute_check(check: BaseCheck) -> None:
             async with semaphore:
                 try:
-                    context = ScanContext(
-                        target_url=normalized_target,
-                        scope=scope,
-                        client=client,
-                        extra=extra_context or {},
-                    )
                     findings = await check.run(context)
                     result.findings.extend(findings)
                     result.executed_checks.append(check.check_id)
