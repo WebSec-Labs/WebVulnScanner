@@ -106,3 +106,27 @@ class CheckRegistry:
 
 # Global default registry instance
 default_registry = CheckRegistry()
+
+
+def register_default_checks(registry: CheckRegistry | None = None) -> CheckRegistry:
+    """Register all standard passive security checks in deterministic order."""
+    target = registry if registry is not None else default_registry
+    from app.scanner.checks.cookies import CookieSecurityCheck
+    from app.scanner.checks.cors import CorsSecurityCheck
+    from app.scanner.checks.headers import SecurityHeadersCheck
+    from app.scanner.checks.https import HttpsConfigurationCheck
+
+    default_check_classes = (
+        CookieSecurityCheck,
+        CorsSecurityCheck,
+        HttpsConfigurationCheck,
+        SecurityHeadersCheck,
+    )
+    for check_cls in default_check_classes:
+        instance = check_cls()
+        if instance.check_id not in target:
+            target.register(instance)
+    return target
+
+
+register_default_checks(default_registry)

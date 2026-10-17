@@ -17,7 +17,7 @@ class ScannerEngine:
     """Orchestrates registered checks within security boundaries and execution limits."""
 
     def __init__(self, registry: CheckRegistry | None = None):
-        self.registry = registry or default_registry
+        self.registry = default_registry if registry is None else registry
 
     async def run_scan(
         self,

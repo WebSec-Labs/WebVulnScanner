@@ -297,3 +297,41 @@ async def test_engine_cancellation_cleans_up_client_resources():
 
     # Verify underlying HTTP client was closed on cancellation cleanup
     assert client_instance._client.is_closed is True
+
+
+@pytest.mark.asyncio
+async def test_engine_preserves_explicit_empty_registry():
+    """Verify that an explicitly supplied empty CheckRegistry is preserved without fallback."""
+    empty_registry = CheckRegistry()
+    assert len(empty_registry) == 0
+
+    engine = ScannerEngine(registry=empty_registry)
+
+    # 1. Verify engine retains the exact custom registry instance and it remains empty
+    assert engine.registry is empty_registry
+    assert len(engine.registry) == 0
+
+    # 2. Handler tracking any network requests
+    request_count = 0
+
+    def mock_handler(request: httpx.Request) -> httpx.Response:
+        nonlocal request_count
+        request_count += 1
+        return httpx.Response(200, text="OK")
+
+    transport = httpx.MockTransport(mock_handler)
+    scope = TargetScope(allowed_hosts={"example.com"})
+    config = ScanConfig(target_url="https://example.com/")
+
+    # 3. Run scan with empty registry
+    result = await engine.run_scan(config, scope=scope, transport=transport)
+
+    # 4. Verify scan completes successfully with 0 checks executed and 0 findings
+    assert result.status == ScanStatus.COMPLETED
+    assert result.executed_checks == []
+    assert result.findings == []
+    assert result.check_errors == {}
+
+    # 5. Verify no default checks unexpectedly ran
+    assert len(result.executed_checks) == 0
+    assert request_count == 0
