@@ -1,111 +1,109 @@
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+  --bg-main: #0B0F14;
+  --bg-sidebar: #0E141C;
+  --bg-card: #121A24;
+  --bg-card-hover: #16212E;
+  --bg-input: #0E141C;
+  --bg-code: #080C10;
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+  --border-color: #263241;
+  --border-subtle: #1C2633;
+  --border-focus: #20C7B5;
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
+  --primary-teal: #20C7B5;
+  --primary-teal-hover: #1AB3A2;
+  --primary-teal-muted: rgba(32, 199, 181, 0.15);
+  --primary-teal-border: rgba(32, 199, 181, 0.4);
+
+  --text-main: #E8EEF5;
+  --text-secondary: #91A0B2;
+  --text-muted: #64748B;
+
+  /* Severity Colors */
+  --sev-critical: #FF5C5C;
+  --sev-critical-bg: rgba(255, 92, 92, 0.12);
+  --sev-critical-border: rgba(255, 92, 92, 0.4);
+
+  --sev-high: #E05252;
+  --sev-high-bg: rgba(224, 82, 82, 0.12);
+  --sev-high-border: rgba(224, 82, 82, 0.4);
+
+  --sev-medium: #E5A93C;
+  --sev-medium-bg: rgba(229, 169, 60, 0.12);
+  --sev-medium-border: rgba(229, 169, 60, 0.4);
+
+  --sev-low: #4D9FFF;
+  --sev-low-bg: rgba(77, 159, 255, 0.12);
+  --sev-low-border: rgba(77, 159, 255, 0.4);
+
+  --sev-info: #8FA0B5;
+  --sev-info-bg: rgba(143, 160, 181, 0.12);
+  --sev-info-border: rgba(143, 160, 181, 0.4);
+
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+
+  font-family: var(--font-sans);
+  line-height: 1.5;
+  font-weight: 400;
+  color: var(--text-main);
+  background-color: var(--bg-main);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
-
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
-}
-
-#root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
+*, *::before, *::after {
   box-sizing: border-box;
 }
 
 body {
   margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  overflow-x: hidden;
 }
 
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
-  }
+h1, h2, h3, h4, h5, h6 {
+  color: var(--text-main);
+  margin-top: 0;
+  font-weight: 600;
+  letter-spacing: -0.02em;
 }
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
-  }
-}
+
 p {
-  margin: 0;
+  margin-top: 0;
+  margin-bottom: 0.5rem;
 }
 
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
+code, pre {
+  font-family: var(--font-mono);
+}
+
+/* Custom subtle scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-sidebar);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
   border-radius: 4px;
-  color: var(--text-h);
 }
 
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
 }

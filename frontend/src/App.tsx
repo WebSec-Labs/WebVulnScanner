@@ -1,137 +1,241 @@
-import { useState } from 'react'
-import './App.css'
+import { useState, useEffect, useCallback, useRef } from 'react';
+import type { CheckMetadata, ScanResponse } from './types/api';
+import { apiClient } from './services/api';
+import { Header, type ApiHealthStatus } from './components/Header';
+import { Sidebar, type NavItem } from './components/Sidebar';
+import { ScanForm } from './components/ScanForm';
+import { ScanSummary } from './components/ScanSummary';
+import { FindingList } from './components/FindingList';
+import './App.css';
 
 export function App() {
-  const [activeTab, setActiveTab] = useState<'overview' | 'security' | 'architecture'>('overview')
+  const [activeNav, setActiveNav] = useState<NavItem>('overview');
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
+  // API connectivity state
+  const [healthStatus, setHealthStatus] = useState<ApiHealthStatus>('checking');
+
+  // Registry checks state
+  const [checks, setChecks] = useState<CheckMetadata[]>([]);
+  const [isLoadingChecks, setIsLoadingChecks] = useState(true);
+  const [checksError, setChecksError] = useState<string | null>(null);
+
+  // Scan execution state
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanResult, setScanResult] = useState<ScanResponse | null>(null);
+  const [scanError, setScanError] = useState<string | null>(null);
+
+  const scanFormRef = useRef<HTMLDivElement>(null);
+
+  // 1. Health check verification
+  const checkApiHealth = useCallback(async () => {
+    try {
+      await apiClient.checkHealth();
+      setHealthStatus('connected');
+    } catch {
+      setHealthStatus('offline');
+    }
+  }, []);
+
+  const handleRefreshHealth = useCallback(async () => {
+    setHealthStatus('checking');
+    await checkApiHealth();
+  }, [checkApiHealth]);
+
+  // 2. Fetch registered checks from backend
+  const fetchChecks = useCallback(async () => {
+    try {
+      const data = await apiClient.getChecks();
+      setChecks(data);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Unable to connect to registry';
+      setChecksError(msg);
+    } finally {
+      setIsLoadingChecks(false);
+    }
+  }, []);
+
+  const handleRetryChecks = useCallback(async () => {
+    setIsLoadingChecks(true);
+    setChecksError(null);
+    await fetchChecks();
+  }, [fetchChecks]);
+
+  useEffect(() => {
+    let ignore = false;
+
+    apiClient
+      .checkHealth()
+      .then(() => {
+        if (!ignore) setHealthStatus('connected');
+      })
+      .catch(() => {
+        if (!ignore) setHealthStatus('offline');
+      });
+
+    apiClient
+      .getChecks()
+      .then((data) => {
+        if (!ignore) {
+          setChecks(data);
+          setIsLoadingChecks(false);
+        }
+      })
+      .catch((err: unknown) => {
+        if (!ignore) {
+          const msg = err instanceof Error ? err.message : 'Unable to connect to registry';
+          setChecksError(msg);
+          setIsLoadingChecks(false);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  // 3. Submit scan handler
+  const handleSubmitScan = async ({
+    targetUrl,
+    checkIds,
+  }: {
+    targetUrl: string;
+    checkIds: string[] | null;
+  }) => {
+    setIsScanning(true);
+    setScanError(null);
+
+    try {
+      const response = await apiClient.submitScan({
+        target_url: targetUrl,
+        check_ids: checkIds,
+      });
+      setScanResult(response);
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : 'An unexpected error occurred during scan execution.';
+      setScanError(msg);
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  const handleSelectNav = (nav: NavItem) => {
+    setActiveNav(nav);
+    setIsMobileSidebarOpen(false);
+    if (nav === 'new-scan') {
+      scanFormRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
 
   return (
-    <div className="app-container">
-      <header className="header">
-        <div className="brand">
-          <span className="brand-logo" role="img" aria-label="shield">🛡️</span>
-          <div>
-            <h1 className="brand-title">WebVulnScanner</h1>
-            <p className="brand-subtitle">Web Application Vulnerability Assessment Platform</p>
+    <div className="dashboard-layout" data-testid="dashboard-layout">
+      {/* Top Mobile Bar */}
+      <div className="mobile-header">
+        <button
+          type="button"
+          className="mobile-menu-toggle"
+          onClick={() => setIsMobileSidebarOpen((prev) => !prev)}
+          aria-label="Toggle navigation menu"
+          data-testid="mobile-menu-toggle"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <line x1="3" y1="12" x2="21" y2="12" />
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <line x1="3" y1="18" x2="21" y2="18" />
+          </svg>
+        </button>
+        <span className="mobile-brand-title">WebVulnScanner</span>
+      </div>
+
+      {/* Sidebar Navigation */}
+      <Sidebar
+        activeNav={activeNav}
+        onSelectNav={handleSelectNav}
+        isOpen={isMobileSidebarOpen}
+        onToggleMobile={() => setIsMobileSidebarOpen(false)}
+      />
+
+      {/* Main Workspace */}
+      <main className="main-content" data-testid="main-content">
+        <div className="workspace-container">
+          <Header healthStatus={healthStatus} onRefreshHealth={handleRefreshHealth} />
+
+          {/* Error Banner */}
+          {scanError && (
+            <div
+              className="scan-error-banner card"
+              data-testid="scan-error-banner"
+              role="alert"
+            >
+              <div className="error-icon-wrapper" aria-hidden="true">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="8" x2="12" y2="12" />
+                  <line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
+              </div>
+              <div className="error-content">
+                <h4 className="error-title">Scan Execution Notice</h4>
+                <p className="error-message" data-testid="scan-error-message">{scanError}</p>
+              </div>
+              <button
+                type="button"
+                className="error-dismiss-btn"
+                onClick={() => setScanError(null)}
+                aria-label="Dismiss error notification"
+                data-testid="dismiss-error-button"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
+          {/* Start a Scan Form */}
+          <div ref={scanFormRef}>
+            <ScanForm
+              checks={checks}
+              isLoadingChecks={isLoadingChecks}
+              checksError={checksError}
+              onRetryChecks={handleRetryChecks}
+              isScanning={isScanning}
+              onSubmitScan={handleSubmitScan}
+            />
           </div>
+
+          {/* Scan Execution Summary */}
+          <ScanSummary
+            scanResult={scanResult}
+            totalChecksAvailable={checks.length}
+          />
+
+          {/* Scan Findings List */}
+          <FindingList
+            findings={scanResult?.findings ?? []}
+            checkErrors={scanResult?.check_errors}
+            isScanCompleted={scanResult !== null}
+          />
         </div>
-        <div className="status-badge" data-testid="status-badge">
-          <span className="status-dot"></span>
-          <span>Phase 1: Foundation Ready</span>
-        </div>
-      </header>
-
-      <nav className="nav-tabs" aria-label="Platform navigation">
-        <button
-          className={`tab-button ${activeTab === 'overview' ? 'active' : ''}`}
-          onClick={() => setActiveTab('overview')}
-          data-testid="tab-overview"
-        >
-          Overview
-        </button>
-        <button
-          className={`tab-button ${activeTab === 'security' ? 'active' : ''}`}
-          onClick={() => setActiveTab('security')}
-          data-testid="tab-security"
-        >
-          Authorized Use Policy
-        </button>
-        <button
-          className={`tab-button ${activeTab === 'architecture' ? 'active' : ''}`}
-          onClick={() => setActiveTab('architecture')}
-          data-testid="tab-architecture"
-        >
-          System Architecture
-        </button>
-      </nav>
-
-      <main className="content-container">
-        {activeTab === 'overview' && (
-          <section className="tab-pane" data-testid="overview-pane">
-            <div className="hero-banner">
-              <h2>Defensive Security &amp; Assessment Engine</h2>
-              <p>
-                WebVulnScanner is a collaborative, modular security assessment platform built for web applications.
-                Designed with strict safety boundaries, scope validation, and rate controls.
-              </p>
-            </div>
-
-            <div className="grid-cards">
-              <div className="card">
-                <div className="card-icon">⚡</div>
-                <h3>FastAPI Backend</h3>
-                <p>
-                  High-performance Python backend with Pydantic validation, structured logging, and health monitoring endpoints.
-                </p>
-                <div className="card-meta">
-                  <code>/api/v1/health</code>
-                </div>
-              </div>
-
-              <div className="card">
-                <div className="card-icon">⚛️</div>
-                <h3>React + TypeScript Frontend</h3>
-                <p>
-                  Built with Vite, modern TypeScript, Vitest testing, and component-driven architecture for clear finding reports.
-                </p>
-                <div className="card-meta">
-                  <code>Vite + Vitest</code>
-                </div>
-              </div>
-
-              <div className="card">
-                <div className="card-icon">🔒</div>
-                <h3>Strict Scope Enforcement</h3>
-                <p>
-                  Centralized scope validation prevents unauthorized target requests, private IP traversal (SSRF), and resource exhaustion.
-                </p>
-                <div className="card-meta">
-                  <code>Planned for Phase 2</code>
-                </div>
-              </div>
-            </div>
-          </section>
-        )}
-
-        {activeTab === 'security' && (
-          <section className="tab-pane" data-testid="security-pane">
-            <div className="alert-box">
-              <h3>⚠️ Legal &amp; Ethical Notice</h3>
-              <p>
-                This software is intended strictly for systems that the operator owns or has explicit, written permission to evaluate.
-                Unauthorized vulnerability scanning or testing is strictly prohibited and may violate relevant computer crime laws.
-              </p>
-            </div>
-            <div className="rules-list">
-              <h4>Safety Guardrails in Core Design</h4>
-              <ul>
-                <li>Mandatory explicit target hostname and domain validation</li>
-                <li>Hard prohibition of scanning localhost, private subnets (RFC 1918), or cloud metadata services</li>
-                <li>Enforced request concurrency throttling, timeouts, and redirect caps</li>
-              </ul>
-            </div>
-          </section>
-        )}
-
-        {activeTab === 'architecture' && (
-          <section className="tab-pane" data-testid="architecture-pane">
-            <div className="arch-card">
-              <h3>Project Monorepo Layout</h3>
-              <ul className="arch-list">
-                <li><code>backend/</code>: FastAPI REST API, Pydantic schemas, and Pytest test suite</li>
-                <li><code>frontend/</code>: React UI, Vite build pipeline, and Vitest test suite</li>
-                <li><code>docs/</code>: Technical specifications, architecture docs, and threat models</li>
-                <li><code>.github/workflows/</code>: Automated multi-stage GitHub Actions CI</li>
-              </ul>
-            </div>
-          </section>
-        )}
       </main>
-
-      <footer className="footer">
-        <p>WebVulnScanner • WebSec-Labs • Released under MIT License</p>
-      </footer>
     </div>
-  )
+  );
 }
 
-export default App
+export default App;
