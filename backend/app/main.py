@@ -1,9 +1,22 @@
-"""FastAPI entrypoint for WebVulnScanner."""
+import asyncio
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.v1.router import api_router
 from app.core.config import settings
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage application lifespan resources."""
+    # Initialize worker-local scan concurrency limiter (10 permits per worker process)
+    app.state.scan_semaphore = asyncio.Semaphore(10)
+    yield
+    # Clean up concurrency resources on shutdown
+    app.state.scan_semaphore = None
+
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -13,6 +26,7 @@ app = FastAPI(
     ),
     docs_url="/docs",
     openapi_url="/openapi.json",
+    lifespan=lifespan,
 )
 
 # Configure CORS for local development and frontend clients
@@ -24,6 +38,9 @@ if settings.BACKEND_CORS_ORIGINS:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+# Mount versioned API router
+app.include_router(api_router, prefix=settings.API_V1_STR)
 
 
 @app.get("/", tags=["General"])

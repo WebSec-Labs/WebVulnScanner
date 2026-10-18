@@ -104,6 +104,17 @@ Built on top of `httpx.AsyncClient`:
 * Captures check failures in `ScanResult.check_errors` without disguising exceptions as successful checks.
 * Supports graceful cancellation via `asyncio.CancelledError`.
 
+### F. Backend REST API Architecture & Concurrency (Phase 4.1)
+The backend exposes versioned REST API endpoints under `/api/v1` (`POST /api/v1/scans`, `GET /api/v1/checks`):
+* **Target Scoping**: API requests construct an isolated `TargetScope` pinned strictly to the validated target host (`allow_subdomains=False`, `allow_local_lab_targets=False`).
+* **Input Bounds**: Enforces maximum bounds on target URLs (2,048 chars) and check ID selections (maximum 50 items, 100 chars per item) using Pydantic validation with forbidden extra fields.
+* **SSRF Sanitization**: Prohibited internal and cloud metadata destinations produce sanitized HTTP 422 responses (`Target destination is prohibited by SSRF security policy`) without disclosing resolved internal IPs.
+* **Concurrency Model & Accepted Limitations**:
+  * Scan concurrency is bounded by an `asyncio.Semaphore(10)` managed within the FastAPI application lifecycle (`app.state.scan_semaphore`).
+  * The concurrency cap of 10 concurrent scans is enforced **per worker process**.
+  * Deployments with multiple worker processes (e.g. multiple Uvicorn workers) scale the aggregate scan capacity proportionally (`workers * 10`).
+  * Distributed rate limiting and background scan queues (e.g. Redis, Celery) are intentionally out of scope for Phase 4.1 and planned for subsequent subphases.
+
 ---
 
 ## 4. Frontend Architecture
