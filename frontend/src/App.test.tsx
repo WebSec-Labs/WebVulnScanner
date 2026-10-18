@@ -68,6 +68,48 @@ const mockScanResponse: ScanResponse = {
   duration_seconds: 1.25,
 };
 
+const mockComprehensiveFindingsResponse: ScanResponse = {
+  ...mockScanResponse,
+  findings: [
+    {
+      check_id: 'https_configuration',
+      title: 'Missing Strict-Transport-Security Header',
+      severity: 'high',
+      url: 'https://example.com/',
+      evidence: 'Header Strict-Transport-Security is not returned',
+      recommendation: 'Enforce HSTS with max-age >= 31536000',
+      timestamp: '2026-10-17T20:00:00Z',
+    },
+    {
+      check_id: 'security_headers',
+      title: 'Missing Content-Security-Policy',
+      severity: 'medium',
+      url: 'https://example.com/',
+      evidence: 'Header Content-Security-Policy is absent',
+      recommendation: 'Configure a restrictive CSP policy',
+      timestamp: '2026-10-17T20:00:00Z',
+    },
+    {
+      check_id: 'cookie_security',
+      title: 'Cookie Missing SameSite Attribute',
+      severity: 'low',
+      url: 'https://example.com/',
+      evidence: 'Set-Cookie: session=123; Secure; HttpOnly',
+      recommendation: 'Specify SameSite=Lax or Strict',
+      timestamp: '2026-10-17T20:00:00Z',
+    },
+    {
+      check_id: 'cors_security',
+      title: 'Informational CORS Configuration',
+      severity: 'info',
+      url: 'https://example.com/',
+      evidence: 'Access-Control-Allow-Origin: * on static asset',
+      recommendation: 'Verify intended exposure of static assets',
+      timestamp: '2026-10-17T20:00:00Z',
+    },
+  ],
+};
+
 describe('WebVulnScanner UI Integration', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -427,5 +469,90 @@ describe('WebVulnScanner UI Integration', () => {
     await waitFor(() => {
       expect(screen.getByTestId('api-status-badge')).toHaveTextContent('API Offline');
     });
+  });
+
+  it('16. deselecting one check submits only the remaining selected check IDs', async () => {
+    const submitSpy = vi.spyOn(apiClient, 'submitScan').mockResolvedValue(mockScanResponse);
+
+    render(<App />);
+    await waitFor(() => expect(screen.getByText('Security Headers')).toBeInTheDocument());
+
+    const input = screen.getByTestId('target-url-input');
+    fireEvent.change(input, { target: { value: 'https://example.com' } });
+
+    // Deselect cors_security
+    const corsCheckbox = screen.getByTestId('checkbox-cors_security');
+    fireEvent.click(corsCheckbox);
+    expect(corsCheckbox).not.toBeChecked();
+
+    const submitBtn = screen.getByTestId('run-scan-button');
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => {
+      expect(submitSpy).toHaveBeenCalledWith({
+        target_url: 'https://example.com',
+        check_ids: ['security_headers', 'cookie_security', 'https_configuration'],
+      });
+    });
+  });
+
+  it('17. opens and closes mobile navigation menu using accessible controls', async () => {
+    render(<App />);
+    await waitFor(() => expect(screen.getByText('Security Headers')).toBeInTheDocument());
+
+    const sidebar = screen.getByTestId('app-sidebar');
+    expect(sidebar).not.toHaveClass('open');
+
+    // Open mobile menu
+    const menuToggle = screen.getByRole('button', { name: /toggle navigation menu/i });
+    fireEvent.click(menuToggle);
+    expect(sidebar).toHaveClass('open');
+
+    // Clicking backdrop closes menu
+    const backdrop = document.querySelector('.sidebar-backdrop');
+    expect(backdrop).toBeInTheDocument();
+    fireEvent.click(backdrop!);
+    expect(sidebar).not.toHaveClass('open');
+
+    // Re-open and click nav item to close
+    fireEvent.click(menuToggle);
+    expect(sidebar).toHaveClass('open');
+
+    const navOverview = screen.getByTestId('nav-overview');
+    fireEvent.click(navOverview);
+    expect(sidebar).not.toHaveClass('open');
+  });
+
+  it('18. filters findings by low and info severity levels', async () => {
+    vi.spyOn(apiClient, 'submitScan').mockResolvedValue(mockComprehensiveFindingsResponse);
+
+    render(<App />);
+    await waitFor(() => expect(screen.getByText('Security Headers')).toBeInTheDocument());
+
+    fireEvent.change(screen.getByTestId('target-url-input'), {
+      target: { value: 'https://example.com' },
+    });
+    fireEvent.click(screen.getByTestId('run-scan-button'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Cookie Missing SameSite Attribute')).toBeInTheDocument();
+      expect(screen.getByText('Informational CORS Configuration')).toBeInTheDocument();
+    });
+
+    // Low filter
+    const lowFilterBtn = screen.getByTestId('filter-low');
+    fireEvent.click(lowFilterBtn);
+    expect(screen.getByText('Cookie Missing SameSite Attribute')).toBeInTheDocument();
+    expect(screen.queryByText('Missing Strict-Transport-Security Header')).not.toBeInTheDocument();
+    expect(screen.queryByText('Missing Content-Security-Policy')).not.toBeInTheDocument();
+    expect(screen.queryByText('Informational CORS Configuration')).not.toBeInTheDocument();
+
+    // Info filter
+    const infoFilterBtn = screen.getByTestId('filter-info');
+    fireEvent.click(infoFilterBtn);
+    expect(screen.getByText('Informational CORS Configuration')).toBeInTheDocument();
+    expect(screen.queryByText('Missing Strict-Transport-Security Header')).not.toBeInTheDocument();
+    expect(screen.queryByText('Missing Content-Security-Policy')).not.toBeInTheDocument();
+    expect(screen.queryByText('Cookie Missing SameSite Attribute')).not.toBeInTheDocument();
   });
 });
