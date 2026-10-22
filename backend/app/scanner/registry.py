@@ -142,4 +142,22 @@ def register_default_checks(registry: CheckRegistry | None = None) -> CheckRegis
     return target
 
 
+def register_active_checks(registry: CheckRegistry | None = None) -> CheckRegistry:
+    """Register all standard controlled active security checks in deterministic order."""
+    target = registry if registry is not None else default_active_registry
+    from app.scanner.checks.http_methods import HttpTraceMethodCheck
+    from app.scanner.checks.http_options import HttpOptionsMethodCheck
+
+    active_check_classes = (
+        HttpOptionsMethodCheck,
+        HttpTraceMethodCheck,
+    )
+    for check_cls in active_check_classes:
+        instance = check_cls()
+        if instance.check_id not in target:
+            target.register(instance)
+    return target
+
+
 register_default_checks(default_registry)
+register_active_checks(default_active_registry)
