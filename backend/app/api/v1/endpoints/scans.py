@@ -18,8 +18,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from app.scanner.client import ScannerTimeoutError
 from app.scanner.engine import ScannerEngine
-from app.scanner.models import ScanConfig
-from app.scanner.registry import default_registry
+from app.scanner.models import CheckType, ScanConfig
+from app.scanner.registry import default_active_registry, default_registry
 from app.scanner.scope import (
     InvalidTargetUrlError,
     ScopeError,
@@ -90,7 +90,13 @@ async def create_scan(
     dns_resolver: Callable[[str], list[str]] | None = Depends(get_dns_resolver),
     async_dns_resolver: Callable[[str], Any] | None = Depends(get_async_dns_resolver),
 ) -> ScanResponse:
-    """Validate target, enforce SSRF guardrails, and execute passive scanner checks."""
+    """Validate target, enforce SSRF guardrails, and execute authorized security checks.
+
+    Passive checks analyze target responses without issuing additional network probes.
+    Active checks (e.g. HTTP method testing) issue targeted probes and require explicit
+    opt-in (active_checks_enabled=True). Target authorization is NEVER inferred from URLs;
+    users are strictly responsible for obtaining permission from target owners before scanning.
+    """
     # 1. URL Normalization and Syntax Validation
     try:
         normalized_url = normalize_url(payload.target_url)
@@ -147,15 +153,31 @@ async def create_scan(
             detail=f"Target scope policy violation: {exc}",
         ) from exc
 
-    # 4. Validate requested check IDs against registered default checks
+    # 4. Validate requested check IDs against registered checks
+    all_known_checks = {**default_registry._checks, **default_active_registry._checks}
     if payload.check_ids is not None:
-        registered_ids = default_registry.list_check_ids()
-        unknown_ids = [cid for cid in payload.check_ids if cid not in default_registry]
+        registered_ids = sorted(all_known_checks.keys())
+        unknown_ids = [cid for cid in payload.check_ids if cid not in all_known_checks]
         if unknown_ids:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Unknown check IDs: {unknown_ids}. Available checks: {registered_ids}",
             )
+        if not payload.active_checks_enabled:
+            unauthorized_active_ids = [
+                cid
+                for cid in payload.check_ids
+                if all_known_checks[cid].metadata.check_type == CheckType.ACTIVE
+            ]
+            if unauthorized_active_ids:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=(
+                        f"Active checks {unauthorized_active_ids} requested but "
+                        "active_checks_enabled is False. Active checks require explicit "
+                        "opt-in and target testing authorization."
+                    ),
+                )
 
     # 5. Build bounded scan configuration
     config = ScanConfig(
@@ -164,10 +186,17 @@ async def create_scan(
         max_requests=payload.max_requests,
         timeout_seconds=payload.timeout_seconds,
         max_concurrency=payload.max_concurrency,
+        crawl_enabled=payload.crawl_enabled,
+        max_depth=payload.max_depth,
+        max_pages=payload.max_pages,
+        active_checks_enabled=payload.active_checks_enabled,
     )
 
     # 6. Execute scan through ScannerEngine with concurrency bounding
-    engine = ScannerEngine(registry=default_registry)
+    engine = ScannerEngine(
+        registry=default_registry,
+        active_registry=default_active_registry,
+    )
 
     try:
         async with semaphore:
@@ -176,6 +205,7 @@ async def create_scan(
                 scope=target_scope,
                 transport=transport,
             )
+
     except (TimeoutError, ScannerTimeoutError) as exc:
         logger.warning("Scan execution timed out for host '%s': %s", clean_hostname, exc)
         raise HTTPException(
@@ -201,4 +231,6 @@ async def create_scan(
         start_time=result.start_time,
         end_time=result.end_time,
         duration_seconds=result.duration_seconds,
+        scanned_pages=result.scanned_pages,
+        failed_pages=result.failed_pages,
     )

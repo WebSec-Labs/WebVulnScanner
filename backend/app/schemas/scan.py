@@ -5,7 +5,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.scanner.models import Finding, ScanStatus, Severity
+from app.scanner.models import CheckType, Finding, ScanStatus, Severity
 
 
 class ScanCreateRequest(BaseModel):
@@ -46,6 +46,31 @@ class ScanCreateRequest(BaseModel):
         le=10,
         description="Maximum concurrent check tasks for this scan.",
     )
+    crawl_enabled: bool = Field(
+        default=False,
+        description="Whether to discover and scan same-origin pages using the crawler.",
+    )
+
+    max_depth: int = Field(
+        default=2,
+        ge=0,
+        le=5,
+        description="Maximum crawl depth for multi-page discovery (0 scans only target URL).",
+    )
+    max_pages: int = Field(
+        default=10,
+        ge=1,
+        le=50,
+        description="Maximum same-origin pages to crawl and scan.",
+    )
+    active_checks_enabled: bool = Field(
+        default=False,
+        description=(
+            "Explicit authorization opt-in to execute active security checks. "
+            "Disabled by default. Target authorization is never inferred; "
+            "users must have explicit permission to test the target."
+        ),
+    )
 
     @field_validator("target_url")
     @classmethod
@@ -63,6 +88,10 @@ class CheckMetadataResponse(BaseModel):
     name: str = Field(..., description="Human-readable check display name")
     description: str = Field(..., description="Description of security issues evaluated")
     severity: Severity = Field(..., description="Default vulnerability severity level")
+    check_type: CheckType = Field(
+        default=CheckType.PASSIVE,
+        description="Check execution classification (passive or active)",
+    )
 
 
 class ScanResponse(BaseModel):
@@ -97,4 +126,12 @@ class ScanResponse(BaseModel):
     duration_seconds: float = Field(
         default=0.0,
         description="Total execution duration in seconds",
+    )
+    scanned_pages: list[str] = Field(
+        default_factory=list,
+        description="List of page URLs successfully scanned",
+    )
+    failed_pages: list[dict[str, str]] = Field(
+        default_factory=list,
+        description="List of pages that failed crawl or scan with error details",
     )
