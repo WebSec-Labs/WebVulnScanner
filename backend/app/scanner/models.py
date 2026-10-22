@@ -94,6 +94,14 @@ class ScanResult(BaseModel):
     start_time: datetime | None = None
     end_time: datetime | None = None
     duration_seconds: float = 0.0
+    scanned_pages: list[str] = Field(
+        default_factory=list,
+        description="List of page URLs successfully scanned",
+    )
+    failed_pages: list[dict[str, str]] = Field(
+        default_factory=list,
+        description="List of pages that failed crawl or scan with error details",
+    )
 
 
 class ScanConfig(BaseModel):
@@ -110,3 +118,26 @@ class ScanConfig(BaseModel):
     max_redirects: int = Field(default=5, ge=0, le=10)
     max_response_bytes: int = Field(default=1_000_000, ge=1024, le=10_000_000)
     max_concurrency: int = Field(default=5, ge=1, le=20)
+    crawl_enabled: bool = Field(
+        default=False,
+        description="Whether to discover and scan same-origin pages using the crawler.",
+    )
+    max_depth: int = Field(
+        default=2,
+        ge=0,
+        le=5,
+        description="Maximum crawl depth for multi-page discovery (0 scans only target URL).",
+    )
+    max_pages: int = Field(
+        default=10,
+        ge=1,
+        le=50,
+        description="Maximum same-origin pages to crawl and scan.",
+    )
+    active_checks_enabled: bool = Field(
+        default=False,
+        description=(
+            "Explicit authorization opt-in to execute active security checks. "
+            "Disabled by default. Users must have explicit authorization to test targets."
+        ),
+    )
