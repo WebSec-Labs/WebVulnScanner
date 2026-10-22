@@ -26,6 +26,22 @@ class Severity(StrEnum):
         return None
 
 
+class CheckType(StrEnum):
+    """Execution classification of a scanner check."""
+
+    PASSIVE = "passive"
+    ACTIVE = "active"
+
+    @classmethod
+    def _missing_(cls, value: object):
+        if isinstance(value, str):
+            lower_val = value.lower()
+            for member in cls:
+                if member.value == lower_val:
+                    return member
+        return None
+
+
 class Finding(BaseModel):
     """Validated vulnerability finding model produced by scanner checks."""
 

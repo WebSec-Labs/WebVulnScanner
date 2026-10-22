@@ -3,6 +3,7 @@
 import re
 
 from app.scanner.check import BaseCheck, CheckMetadata
+from app.scanner.models import CheckType
 
 
 class RegistryError(Exception):
@@ -81,13 +82,22 @@ class CheckRegistry:
             raise CheckNotFoundError(f"Check '{check_id}' not found in registry")
         return self._checks[check_id]
 
-    def list_checks(self) -> list[BaseCheck]:
+    def list_checks(self, check_type: CheckType | None = None) -> list[BaseCheck]:
         """Return all registered checks sorted deterministically by check_id."""
-        return [self._checks[cid] for cid in sorted(self._checks.keys())]
+        checks = [self._checks[cid] for cid in sorted(self._checks.keys())]
+        if check_type is not None:
+            return [c for c in checks if getattr(c.metadata, "check_type", None) == check_type]
+        return checks
 
-    def list_check_ids(self) -> list[str]:
+    def list_check_ids(self, check_type: CheckType | None = None) -> list[str]:
         """Return all registered check IDs sorted alphabetically."""
-        return sorted(self._checks.keys())
+        if check_type is None:
+            return sorted(self._checks.keys())
+        return [
+            cid
+            for cid in sorted(self._checks.keys())
+            if getattr(self._checks[cid].metadata, "check_type", None) == check_type
+        ]
 
     def unregister(self, check_id: str) -> None:
         """Remove a check from the registry if present."""
@@ -104,8 +114,11 @@ class CheckRegistry:
         return check_id in self._checks
 
 
-# Global default registry instance
+# Global default passive checks registry
 default_registry = CheckRegistry()
+
+# Global default active checks registry
+default_active_registry = CheckRegistry()
 
 
 def register_default_checks(registry: CheckRegistry | None = None) -> CheckRegistry:

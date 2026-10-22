@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field
 
-from app.scanner.models import Finding, Severity
+from app.scanner.models import CheckType, Finding, Severity
 
 if TYPE_CHECKING:
     from app.scanner.client import ScannerHttpClient, ScannerResponse
@@ -20,6 +20,10 @@ class CheckMetadata(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
     description: str = Field(..., min_length=1)
     severity: Severity = Field(default=Severity.INFO)
+    check_type: CheckType = Field(
+        default=CheckType.PASSIVE,
+        description="Check execution classification (passive or active)",
+    )
 
 
 class ScanContext:
